@@ -1,98 +1,127 @@
-#lang racket
 #|
-The program macro takes a list of instructions and creates a list containing those instructions.
-The instruction-addx macro takes an integer and returns an S-expression representing the addx instruction with the given integer as its argument.
-The instruction-noop macro returns an S-expression representing the noop instruction.
-The parse-integer function takes a string and returns a cons cell containing the integer at the beginning of the string and the index of the character after the integer.
-The parse function takes a file name, reads the contents of the file, and uses parse-integer to parse each line into an instruction. It returns a list of instructions.
-The interp function takes a list of instructions and a number of cycles to simulate. It uses a recursive loop function to simulate the execution of the instructions
-for the given number of cycles. The loop function takes the current value of the X-register, the remaining instructions to execute, the current cycle number, and a
-list of signals that have been generated so far. If there are no more instructions or the maximum number of cycles has been reached, the loop function returns the list of signals.
-Otherwise, it executes the first instruction in the list and updates the X-register and signals list accordingly. The loop function then calls itself recursively with the updated values.
-validate-instructions function takes a list of instructions as input and returns true if all instructions are either "noop" or "addx" with a valid integer value.
-logic function takes a file name as input and returns the sum of the X-register values at the end of cycles 20, 60, 100, 140, 180, and 220. It calls parse to get the list
-of instructions from the file, then calls validate-instructions to check that the instructions are valid. Finally, it calls interp with the list of instructions and each cycle value,
-then sums the X-register values returned by interp.
+4/17/23
+Final Project: https://adventofcode.com/2022/day/10
+Mathyo Abou Asali - Razie Hyria
 |#
-#|Grammar
-<program> ::= <instruction>*
-<instruction> ::= "addx" <integer>
-                | "noop"
-<integer> ::= <sign>? <digit>+
-<sign> ::= "+" | "-"
-<digit> ::= "0" | "1" | ... | "9"|#
+;; ============================================================
 
+#lang racket
+
+;; Define a macro that creates a list of instructions.
 (define-syntax-rule (program instructions ...)
   (list instructions ...))
 
+;; Define a macro that creates an addx instruction with the given integer value.
 (define-syntax-rule (instruction-addx integer)
   `(addx ,integer))
 
+;; Define a macro that creates a noop instruction.
 (define-syntax-rule (instruction-noop)
   'noop)
 
-;; Parser
 
-(define (parse-integer str)
-  (let ((matches (regexp-match #rx"[-+]?[0-9]+" str)))
+;; Parser-----------------------------------------------------------------
+
+;; Parses a noop instruction and returns an 'instruction-noop object
+(define (parse-noop)
+  (instruction-noop))
+
+;; Parses an addx instruction from the provided string
+(define (parse-addx str)
+  (let ((matches (regexp-match #rx"[-+]?[0-9]+" str))) ; Uses a regular expression to match an optional sign followed by digits in the string
     (if matches
-        (let ((integer (string->number (car matches))))
-          (display "Parsed integer value: ")
-          (displayln integer)
-          integer)
-        false)))
+        (string->number (car matches)) ; If there is a match, converts the matched string to a number and returns it
+        (error (format "Invalid addx instruction: ~a" str))))) ; Otherwise, raises an error indicating an invalid instruction
 
+;; Parses a line from the provided file, and returns the corresponding instruction
+(define (parse-line line)
+  (let* ((words (string-split line)) ; Splits the line into words
+         (instruction (car words))) ; Gets the first word as the instruction
+    (cond ((string=? instruction "noop") ; If the instruction is "noop", parses a noop instruction
+           (parse-noop))
+          ((string-prefix? "addx" instruction) ; If the instruction starts with "addx", parses an addx instruction from the second word
+           (parse-addx (cadr words)))
+          (else (error (format "Invalid instruction: ~a" line)))))) ; Otherwise, raises an error indicating an invalid instruction
 
-
+;; Parses instructions from the provided file, and returns a list of corresponding instructions
 (define (parse file)
-  (let loop ((port (open-input-file file))
-             (instructions '()))
-    (let ((line (read-line port)))
-      (if (eof-object? line)
-          (begin
-            (display "List of instructions: ")
-            (display instructions)
-            (newline)
-            (reverse instructions))
-          (let* ((words (string-split line))
-                 (instruction (car words)))
-            (cond ((string=? instruction "noop")
-                   (loop port (append instructions (list (instruction-noop)))))
-                  ((string-prefix? "addx" instruction)
-                   (let ((integer (parse-integer (cadr words))))
-                     (if integer
-                         (loop port (append instructions (list (instruction-addx integer))))
-                         (error (format "Invalid instruction: ~a" line)))))
-                  (else (error (format "Invalid instruction: ~a" line)))))))))
+  (with-input-from-file file ; Opens the file and creates an input port
+    (lambda ()
+      (let loop ((instructions '())) ; Defines a recursive procedure with an accumulator for the parsed instructions
+        (let ((line (read-line))) ; Reads the next line from the input port
+          (if (eof-object? line) ; If the end of the file is reached, returns the list of parsed instructions
+              (begin
+                (display "List of instructions: ")
+                (display instructions)
+                (newline)
+                instructions)
+              (let ((instruction (parse-line line))) ; Otherwise, parses the line and appends the resulting instruction to the accumulator
+                (loop (append instructions (list instruction))))))))))
 
-;; interp:
+;; logic-----------------------------------------------------------------
 
-(define (interp instructions cycles)
-  (define (run-cycle instruction-list x-value cycle)
-    (if (null? instruction-list)
-        x-value
-        (let* ((instruction (car instruction-list))
-               (new-x-value (if (eq? instruction 'noop)
-                                x-value
-                                (+ x-value (cadr instruction)))))
-          (if (= cycle 0)
-              new-x-value
-              (run-cycle (cdr instruction-list) new-x-value (- cycle 1))))))
+;; handle-noop function that adds 1 to the current value of X
+(define (handle-noop x-value)
+  (+ x-value 1))
 
-  (define (compute-signal-strength instructions cycle)
-    (* cycle (run-cycle instructions 1 cycle)))
+;; handle-addx function that adds the integer value to the current value of X and addx-total
+(define (handle-addx x-value addx-total value)
+  (values (+ x-value 2) (+ addx-total value)))
 
-  (for-each (lambda (cycle)
-              (let ((signal-strength (compute-signal-strength instructions cycle)))
-                (display "Cycle ")
-                (display cycle)
-                (display " has signal strength ")
-                (displayln signal-strength)))
-            cycles))
+;; execute function that runs the program instructions and returns the total signal strength of a give cycle
+(define (execute instructions cycle)
+  (let ((addx-total 0)
+        (x-value 1))
+    (let loop ((remaining-instructions instructions))
+      (if (or (null? remaining-instructions) (= x-value cycle))
+          (+ 2 addx-total)
+          (let ((current-instruction (car remaining-instructions)))
+            (cond ((eq? 'noop current-instruction)
+                   (set! x-value (handle-noop x-value))) ;; handle noop instruction
+                  ((integer? current-instruction)
+                   (let-values (((new-x-value new-addx-total) (handle-addx x-value addx-total current-instruction)))
+                     (set! x-value new-x-value)
+                     (set! addx-total new-addx-total)))) ;; handle addx instruction
+            (if (= x-value cycle)
+                (+ 1 addx-total) ;; signal strength is 1 plus the total addx value
+                (loop (cdr remaining-instructions))))))))
 
+;; compute-signal function that computes the signal strength and the value of X during a given cycle
+(define (compute-signal instructions cycle)
+  (let ((x-value (execute instructions cycle)))
+    (list (* x-value cycle) x-value))) ;; return a list of signal strength and X-value
 
+;; compute-cycle-signal function that computes and displays the signal strength and the value of X for a given cycle
+(define (compute-cycle-signal instructions cycle)
+  (let* ((signal-and-x (compute-signal instructions cycle))
+         (signal-strength (car signal-and-x))
+         (x-value (cadr signal-and-x)))
+    (display "During the ")
+    (display cycle)
+    (display "th cycle, register X has the value ")
+    (display x-value)
+    (display " so the signal strength is ")
+    (displayln signal-strength)
+    signal-strength)) ;; return the signal strength
+
+;; main---------------------------------------------------------------------------------------
+(define (main instructions cycles)  
+  (let ((total-signal-strength 0))   
+    (for-each (lambda (cycle)  ;; For each cycle, compute the signal strength and add it to the total
+                (set! total-signal-strength
+                      (+ total-signal-strength (compute-cycle-signal instructions cycle))))
+              cycles)    
+    (display "The total signal strength is ")  ;; Print the total signal strength
+    (displayln total-signal-strength)))
+
+; Parse the instructions file and store the result in a variable
 (define instructions (parse "D:/day-10-1.txt"))
-(interp instructions '(20 60 100 140 180 220))
+
+; Compute the signal strength for the specified cycles and print the result
+(main instructions '(20 60 100 140 180 220))
+
+
+
 
 
 
