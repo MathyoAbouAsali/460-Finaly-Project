@@ -31,6 +31,7 @@ then sums the X-register values returned by interp.
 (define-syntax-rule (instruction-noop)
   'noop)
 
+;; Parser
 
 (define (parse-integer str)
   (let ((matches (regexp-match #rx"[-+]?[0-9]+" str)))
@@ -64,49 +65,33 @@ then sums the X-register values returned by interp.
                          (error (format "Invalid instruction: ~a" line)))))
                   (else (error (format "Invalid instruction: ~a" line)))))))))
 
-
-
-
-
-
-
-
-
-
 ;; interp:
 
-(define (interp insts cycle-list)
-  (let loop ((x 1)            ; current value of X-register
-             (insts insts)    ; remaining instructions to execute
-             (cycle-num 0)    ; current cycle number
-             (signals '())    ; list of signals generated so far
-             (signal-count 0)) ; number of signals generated so far
-    (if (or (null? insts) ; no more instructions
-            (>= cycle-num (length cycle-list))) ; maximum cycles reached
-        (begin
-          (displayln (format "Total signals generated: ~a" signal-count))
-          signals)
-        (let ((next-cycle (car cycle-list))
-              (next-inst (car insts)))
-          (cond ((eq? next-inst 'noop) ; no operation
-                 (loop x (cdr insts) (add1 cycle-num) signals signal-count))
-                ((eq? (car next-inst) 'addx) ; add X-register and integer
-                 (let ((integer (cadr next-inst))
-                       (new-x (+ x (cadr next-inst))))
-                   (loop new-x (cdr insts) (add1 cycle-num)
-                         (if (>= cycle-num next-cycle)
-                             (begin ; generate signal
-                               (set! signal-count (add1 signal-count))
-                               (cons new-x signals))
-                             signals)
-                         signal-count)))
-                (else (error "Unknown instruction")))))))
+(define (interp instructions cycles)
+  (define (run-cycle instruction-list x-value cycle)
+    (if (null? instruction-list)
+        x-value
+        (let* ((instruction (car instruction-list))
+               (new-x-value (if (eq? instruction 'noop)
+                                x-value
+                                (+ x-value (cadr instruction)))))
+          (if (= cycle 0)
+              new-x-value
+              (run-cycle (cdr instruction-list) new-x-value (- cycle 1))))))
 
+  (define (compute-signal-strength instructions cycle)
+    (* cycle (run-cycle instructions 1 cycle)))
+
+  (for-each (lambda (cycle)
+              (let ((signal-strength (compute-signal-strength instructions cycle)))
+                (display "Cycle ")
+                (display cycle)
+                (display " has signal strength ")
+                (displayln signal-strength)))
+            cycles))
 
 
 (define instructions (parse "D:/day-10-1.txt"))
-
-
 (interp instructions '(20 60 100 140 180 220))
 
 
