@@ -30,17 +30,17 @@ Mathyo Abou Asali - Razie Hyria
 (define (parse-addx str)
   (let ((matches (regexp-match #rx"[-+]?[0-9]+" str))) ; Uses a regular expression to match an optional sign followed by digits in the string
     (if matches
-        (string->number (car matches)) ; If there is a match, converts the matched string to a number and returns it
+        (string->number (first matches)) ; If there is a match, converts the matched string to a number and returns it
         (error (format "Invalid addx instruction: ~a" str))))) ; Otherwise, raises an error indicating an invalid instruction
 
 ;; Parses a line from the provided file, and returns the corresponding instruction
 (define (parse-line line)
-  (let* ((words (string-split line)) ; Splits the line into words
-         (instruction (car words))) ; Gets the first word as the instruction
+  (let* ((string (string-split line)) ; Splits the line into words
+         (instruction (first string))) ; Gets the first word as the instruction
     (cond ((string=? instruction "noop") ; If the instruction is "noop", parses a noop instruction
            (parse-noop))
           ((string-prefix? "addx" instruction) ; If the instruction starts with "addx", parses an addx instruction from the second word
-           (parse-addx (cadr words)))
+           (parse-addx (second string)))
           (else (error (format "Invalid instruction: ~a" line)))))) ; Otherwise, raises an error indicating an invalid instruction
 
 ;; Parses instructions from the provided file, and returns a list of corresponding instructions
@@ -75,7 +75,7 @@ Mathyo Abou Asali - Razie Hyria
     (let loop ((remaining-instructions instructions))
       (if (or (null? remaining-instructions) (= x-value cycle))
           (+ 2 addx-total)
-          (let ((current-instruction (car remaining-instructions)))
+          (let ((current-instruction (first remaining-instructions)))
             (cond ((eq? 'noop current-instruction)
                    (set! x-value (handle-noop x-value))) ;; handle noop instruction
                   ((integer? current-instruction)
@@ -84,7 +84,7 @@ Mathyo Abou Asali - Razie Hyria
                      (set! addx-total new-addx-total)))) ;; handle addx instruction
             (if (= x-value cycle)
                 (+ 1 addx-total) ;; signal strength is 1 plus the total addx value
-                (loop (cdr remaining-instructions))))))))
+                (loop (rest remaining-instructions))))))))
 
 ;; compute-signal function that computes the signal strength and the value of X during a given cycle
 (define (compute-signal instructions cycle)
@@ -94,8 +94,8 @@ Mathyo Abou Asali - Razie Hyria
 ;; compute-cycle-signal function that computes and displays the signal strength and the value of X for a given cycle
 (define (compute-cycle-signal instructions cycle)
   (let* ((signal-and-x (compute-signal instructions cycle))
-         (signal-strength (car signal-and-x))
-         (x-value (cadr signal-and-x)))
+         (signal-strength (first signal-and-x))
+         (x-value (second signal-and-x)))
     (display "During the ")
     (display cycle)
     (display "th cycle, register X has the value ")
