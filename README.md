@@ -10,7 +10,8 @@ Situations like this must be why the Elves prioritized getting the communication
 
 Unless, that is, you can design a replacement for the device's video system! It seems to be some kind of cathode-ray tube screen and simple CPU that are both driven by a precise clock circuit. The clock circuit ticks at a constant rate; each tick is called a cycle.
 
-Start by figuring out the signal being sent by the CPU. The CPU has a single register, X, which starts with the value 1. It supports only two instructions:
+### Part 1 - figuring out the signal being sent by the CPU
+The CPU has a single register, X, which starts with the value 1. It supports only two instructions:
 
     addx V takes two cycles to complete. After two cycles, the X register is increased by the value V. (V can be negative.)
     noop takes one cycle to complete. It has no other effect.
@@ -24,7 +25,7 @@ addx 3
 addx -5
 ``` 
 
-### Execution of this program proceeds as follows:
+#### Execution of this program proceeds as follows:
 
     At the start of the first cycle, the noop instruction begins execution. During the first cycle, X is 1. After the first cycle, the noop instruction finishes execution, doing nothing.
     At the start of the second cycle, the addx 3 instruction begins execution. During the second cycle, X is still 1.
@@ -38,7 +39,7 @@ For example, consider this larger program:
 
 ``` day10.txt ```
 
-The interesting signal strengths can be determined as follows:
+### Part 2 - The interesting signal strengths can be determined as follows:
 
     During the 20th cycle, register X has the value 21, so the signal strength is 20 * 21 = 420. (The 20th cycle occurs in the middle of the second addx -1, so the value of register X is the starting value, 1, plus all of the other addx values up to that point: 1 + 15 - 11 + 6 - 3 + 5 - 1 - 8 + 13 + 4 = 21.)
     During the 60th cycle, register X has the value 19, so the signal strength is 60 * 19 = 1140.
