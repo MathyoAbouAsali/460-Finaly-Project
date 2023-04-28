@@ -32,43 +32,57 @@ then sums the X-register values returned by interp.
   'noop)
 
 ;; Parser
+
 (define (parse-integer str)
-  (define match (regexp-match-positions #rx"[+-]?\\d+" str))
-  (if match
-      (cons (string->number (substring str (car match) (cdr match)))
-            (cdr match))
-      (error (format "Invalid input: ~a" str))))
+  (let ((prefix "addx"))
+    (if (string-prefix? prefix str)
+        (begin
+          (display "Parsing integer from: ")
+          (displayln str)
+          (let ((integer (string->number (substring str (string-length prefix)))))
+            (display "Parsed integer value: ")
+            (displayln integer)
+            integer))
+        (error (format "Invalid instruction: ~a" str)))))
 
 (define (parse file)
-  (with-input-from-file file
-    (lambda ()
-      (let loop ([instructions '()])
-        (define line (read-line))
-        (cond
-          [(eof-object? line) (reverse instructions)]
-          [(string=? line "noop") (loop (cons (instruction-noop) instructions))]
-          [(string-prefix? "addx" line) (let ([integer (parse-integer line)])
-                                          (if integer
-                                              (loop (cons (instruction-addx (car integer)) instructions))
-                                              (error (format "Invalid instruction: ~a" line))))]
-          [else (error (format "Invalid instruction: ~a" line))])))))
+  (let ((port (open-input-file file)))
+    (let loop ([instructions '()])
+      (define line (read-line port))
+      (cond
+        [(eof-object? line) (reverse instructions)]
+        [else (let* ([words (string-split line)])
+                (cond
+                  [(null? words) (loop instructions)]
+                  [(string=? (car words) "noop") (loop (cons (instruction-noop) instructions))]
+                  [(string-prefix? "addx" (car words)) (let ([integer (parse-integer (car words))])
+                                                         (if integer
+                                                             (loop (cons (instruction-addx integer) instructions))
+                                                             (error (format "Invalid instruction: ~a" integer))))] 
+                  [else (error (format "Invalid instruction: ~a" line))]))]))))
+
+
+
+
 
 ;; interp:
 
-(define (interp instructions cycles)
-  (let loop ([X-register 1]
-             [instructions instructions]
-             [cycle 1]
-             [signals '()])
-    (cond
-      [(or (null? instructions) (> cycle cycles))
-       (reverse signals)]
-      [(string=? (caar instructions) "noop")       (loop X-register (cdr instructions) (+ cycle 1) signals)]
-      [else       (let* ([v (cadr (car instructions))]
-              [X-register (+ X-register v)])
-         (if (= cycle cycles)
-             (loop X-register (cdr instructions) (+ cycle 1) (cons X-register signals))
-             (loop X-register (cdr instructions) (+ cycle 1) signals)))])))
+(define (interp file cycles)
+  (let* ([instructions (parse file)]
+         [cycle-list '(20 60 100 140 180 220)])
+    (let loop ([X-register 1]
+               [instructions instructions]
+               [cycle 1]
+               [signals '()])
+      (cond
+        [(or (null? instructions) (> cycle cycles))
+         (reverse signals)]
+        [(string=? (caar instructions) "noop")       (loop X-register (cdr instructions) (+ cycle 1) signals)]
+        [else       (let* ([v (cadr (car instructions))]
+                            [X-register (+ X-register v)])
+                      (if (= cycle cycles)
+                          (loop X-register (cdr instructions) (+ cycle 1) (cons X-register signals))
+                          (loop X-register (cdr instructions) (+ cycle 1) signals)))]))))
 
 
 ;; logic functions
@@ -80,13 +94,28 @@ then sums the X-register values returned by interp.
                      (integer? (cadr inst)))))
           instructions))
 
-(define (logic file)
+(define (print-part1 instructions cycle-list)
+  (define signal-strengths (map (lambda (cycle) (car (interp instructions cycle))) cycle-list))
+  (display "Signal Strengths: ")
+  (display signal-strengths)
+  (newline))
+
+(define (print-part2 instructions cycle-list)
+  (define signal-strengths (map (lambda (cycle) (car (interp instructions cycle))) cycle-list))
+  (define sum (apply + (map * cycle-list signal-strengths)))
+  (display "Sum of Signal Strengths: ")
+  (display sum)
+  (newline))
+
+(define (run file)
   (let* ([instructions (parse file)]
          [cycle-list '(20 60 100 140 180 220)])
     (when (not (validate-instructions instructions))
       (error "Invalid instructions"))
-    (apply + (map (lambda (cycle) (car (interp instructions cycle))) cycle-list))))
+    (print-part1 instructions cycle-list)
+    (print-part2 instructions cycle-list)))
 
+(run "D:/day-10-1.txt")
 
 
 
