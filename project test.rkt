@@ -34,32 +34,32 @@ then sums the X-register values returned by interp.
 ;; Parser
 
 (define (parse-integer str)
-  (let ((prefix "addx"))
-    (if (string-prefix? prefix str)
-        (begin
-          (display "Parsing integer from: ")
-          (displayln str)
-          (let ((integer (string->number (substring str (string-length prefix)))))
-            (display "Parsed integer value: ")
-            (displayln integer)
-            integer))
-        (error (format "Invalid instruction: ~a" str)))))
+  (let ((matches (regexp-match #rx"[-+]?[0-9]+" str)))
+    (if matches
+        (let ((integer (string->number (car matches))))
+          (display "Parsed integer value: ")
+          (displayln integer)
+          integer)
+        false)))
+
+
 
 (define (parse file)
-  (let ((port (open-input-file file)))
-    (let loop ([instructions '()])
-      (define line (read-line port))
-      (cond
-        [(eof-object? line) (reverse instructions)]
-        [else (let* ([words (string-split line)])
-                (cond
-                  [(null? words) (loop instructions)]
-                  [(string=? (car words) "noop") (loop (cons (instruction-noop) instructions))]
-                  [(string-prefix? "addx" (car words)) (let ([integer (parse-integer (car words))])
-                                                         (if integer
-                                                             (loop (cons (instruction-addx integer) instructions))
-                                                             (error (format "Invalid instruction: ~a" integer))))] 
-                  [else (error (format "Invalid instruction: ~a" line))]))]))))
+  (let loop ((port (open-input-file file))
+             (instructions '()))
+    (let ((line (read-line port)))
+      (if (eof-object? line)
+          (reverse instructions)
+          (let* ((words (string-split line))
+                 (instruction (car words)))
+            (cond ((string=? instruction "noop")
+                   (loop port (cons (instruction-noop) instructions)))
+                  ((string-prefix? "addx" instruction)
+                   (let ((integer (parse-integer (cadr words))))
+                     (if integer
+                         (loop port (cons (instruction-addx integer) instructions))
+                         (error (format "Invalid instruction: ~a" line)))))
+                  (else (error (format "Invalid instruction: ~a" line)))))))))
 
 
 
